@@ -254,7 +254,7 @@ textarea.cp{width:100%;min-height:140px;border-radius:12px;border:1.5px solid va
 <div id="toast"></div>
 <input type="file" id="fileCam" accept="image/*" capture="environment" hidden>
 <input type="file" id="fileGal" accept="image/*" multiple hidden>
-<input type="file" id="fileRestore" accept="application/json,.json" hidden>
+<input type="file" id="fileRestore" accept="text/plain,.txt,application/json,.json" hidden>
 
 <script>
 (function(){
@@ -308,20 +308,18 @@ function calc(date){
 var pad=function(n){return (n<10?'0':'')+n};
 var tstr=function(m){return pad(Math.floor(m/60))+':'+pad(m%60)};
 var tmin=function(t){var a=/^(\d+):(\d+)$/.exec(t||'');return a?Number(a[1])*60+Number(a[2]):null};
-function nowMin5(){var d=new Date();return Math.floor((d.getHours()*60+d.getMinutes())/5)*5}
-function ensureTimes(){if(S.pEnd==null||S.pStart==null){S.pEnd=nowMin5();S.pStart=Math.max(0,S.pEnd-30)}}
+function nowMin(){var d=new Date();return d.getHours()*60+d.getMinutes()}
+function ensureTimes(){if(S.pEnd==null||S.pStart==null){S.pEnd=nowMin();S.pStart=Math.max(0,S.pEnd-30)}}
 /* 宿題が全部OKになる前に始めた遊び = 先取り */
 function lastOkAt(c){return c.items.reduce(function(t,i){return Math.max(t,i.okAt||0)},0)}
 function isPre(c,startMs){if(c.total===0)return false;if(!c.all)return true;return lastOkAt(c)>startMs}
 function timeRow(label,key,m){
   var h=Math.floor(m/60),mi=m%60,ho='',mo='',i,j;
   for(i=0;i<24;i++)ho+='<option value="'+i+'"'+(i===h?' selected':'')+'>'+pad(i)+'</option>';
-  for(j=0;j<60;j+=5)mo+='<option value="'+j+'"'+(j===mi?' selected':'')+'>'+pad(j)+'</option>';
+  for(j=0;j<60;j++)mo+='<option value="'+j+'"'+(j===mi?' selected':'')+'>'+pad(j)+'</option>';
   return '<div class="trow"><span class="tl">'+label+'</span>'+
-    '<button class="mini" data-act="tAdj" data-v="'+key+'" data-d="-5" aria-label="5分まえ">−5</button>'+
     '<select data-chg="tH" data-v="'+key+'" aria-label="'+label+'の時">'+ho+'</select><span class="colon">:</span>'+
     '<select data-chg="tM" data-v="'+key+'" aria-label="'+label+'の分">'+mo+'</select>'+
-    '<button class="mini" data-act="tAdj" data-v="'+key+'" data-d="5" aria-label="5分あと">＋5</button>'+
     (key==='pEnd'?'<button class="mini" data-act="tNow">いま</button>':'')+'</div>';
 }
 function hashPin(p){var h=5381,s='hw|'+p;for(var i=0;i<s.length;i++)h=((h<<5)+h+s.charCodeAt(i))>>>0;return String(h)}
@@ -500,7 +498,6 @@ function viewToday(){
     '<div class="bar'+(c.dayLeft<0?' over':'')+'"><i style="width:'+dpct+'%"></i></div>'+
     '<div class="note" style="margin-top:-6px">1日の上限 '+c.limit+'分・きょうの合計 '+c.playTotal+'分'+(c.preUsed?'（うち先取り '+c.preUsed+'分）':'')+'</div></div>';
 
-  var quick=[15,30,45,60].map(function(m){return '<button class="chip" data-act="tAgo" data-m="'+m+'" aria-pressed="'+(dur===m)+'">'+m+'分前</button>'}).join('');
   var log=c.plays.length?'<div class="log">'+c.plays.map(function(p){
     var recent=Date.now()-p.at<120000;
     return '<div class="li"><span class="tm" style="width:auto">'+(p.start?p.start+'〜'+p.end:hhmm(p.at))+'</span><span class="num">'+p.min+'分</span>'+
@@ -509,7 +506,6 @@ function viewToday(){
   }).join('')+'</div>':'';
   var form='<div class="card sect"><div class="ch"><b>遊んだ時間を申告</b><span>ゲームでもテレビでもOK</span></div>'+
     timeRow('はじめ','pStart',S.pStart)+timeRow('おわり','pEnd',S.pEnd)+
-    '<div class="chips"><span class="note" style="align-self:center">はじめ＝おわりの</span>'+quick+'</div>'+
     '<div class="dur'+(dur>0?'':' bad')+'">'+(dur>0?'<b class="num">'+dur+'</b>分 あそんだ':'おわりを はじめより あとにしてね')+'</div>'+
     '<button class="btn" data-act="playSubmit"'+((S.busy||dur<=0||needAppr)?' disabled':'')+'>この時間を申告する</button>'+
     (needAppr?'<div class="note" style="margin-top:10px;text-align:center">先取りになるので、先に「親の承認」を押してもらってね</div>':'')+
@@ -609,11 +605,11 @@ function viewParent(){
     '<div class="stack"><button class="btn sub" data-act="testWebhook">テスト送信</button>'+
     '<button class="btn sub" data-act="sendSummary">'+md(S.date)+' のまとめを送る</button>'+
     '<button class="btn sub" data-act="toggleOpenNotify">毎日の最初の使用時に通知：'+(S.settings.openNotify===false?'オフ':'オン')+'</button></div>'+obList+'</div>'+
-  '<div class="sec"><h3>そのほか</h3><p>記録はこの端末のブラウザの中に入っています。ときどきバックアップを保存してね。</p>'+
+  '<div class="sec"><h3>そのほか</h3><p>記録はこの端末のブラウザの中に入っています。ときどきバックアップを保存してね（復活用のファイルが Discord に届きます）。</p>'+
 
     '<div class="stack" style="margin-top:8px"><button class="btn sub" data-act="changePin">暗証番号を変える</button>'+
     '<button class="btn sub" data-act="cleanPhotos">'+(isArmed('clean')?'もう一度おすと 30日より前の写真を消します':'30日より前の写真を消す')+'</button>'+
-    '<button class="btn sub" data-act="backup">バックアップを保存</button>'+
+    '<button class="btn sub" data-act="backup">バックアップを保存（Discordに送信）</button>'+
     '<button class="btn sub" data-act="restore">'+(isArmed('restore')?'もう一度おすと ファイルを選びます（今のデータは上書き）':'バックアップを読みこむ')+'</button>'+
     '<button class="btn danger" data-act="lock">親モードを終わる</button></div></div>';
 }
@@ -760,9 +756,7 @@ var A={
   unokItem:function(e){requireParent(function(){saveDay(S.date,function(d){var it=d.items.filter(function(i){return i.id===e.id})[0];if(it){it.ok=false;delete it.okAt}}).then(function(){renderAll()})})},
   tH:function(e){var k=e.v==='pEnd'?'pEnd':'pStart';S[k]=Number(e.val)*60+S[k]%60;renderMain()},
   tM:function(e){var k=e.v==='pEnd'?'pEnd':'pStart';S[k]=Math.floor(S[k]/60)*60+Number(e.val);renderMain()},
-  tAdj:function(e){var k=e.v==='pEnd'?'pEnd':'pStart';S[k]=Math.max(0,Math.min(1435,S[k]+Number(e.d)));renderMain()},
-  tNow:function(){S.pEnd=nowMin5();renderMain()},
-  tAgo:function(e){S.pStart=Math.max(0,S.pEnd-Number(e.m));renderMain()},
+  tNow:function(){S.pEnd=nowMin();renderMain()},
   preApprove:function(){
     requireParent(function(){
       var date=S.date;
@@ -890,11 +884,24 @@ var A={
   toggleOpenNotify:function(){saveSettings({openNotify:S.settings.openNotify===false})},
   retrySend:function(){trySend();toast('送りなおしています')},
   backup:function(){
+    if(!webhookOk(S.settings.webhookUrl)){toast('先に Webhook URL を保存してね');return}
     S.db._export().then(function(obj){
-      var b=new Blob([JSON.stringify(obj)],{type:'application/json'}),a=document.createElement('a');
-      a.href=URL.createObjectURL(b);a.download='shukudai-note-'+S.today+'.json';document.body.appendChild(a);a.click();
-      setTimeout(function(){URL.revokeObjectURL(a.href);a.remove()},1500);
-    });
+      /* Webhook URL・暗証番号・未送信の通知・大きい写真は入れない（写真はアップ時に Discord に届いている） */
+      obj.docs=obj.docs.filter(function(x){return x.p.indexOf('outbox/')!==0}).map(function(x){
+        if(x.p==='config/settings'){x.d=Object.assign({},x.d);delete x.d.webhookUrl;delete x.d.pinHash}
+        return x;
+      });
+      obj.big=[];
+      var blob=new Blob([JSON.stringify(obj)],{type:'text/plain'});
+      if(blob.size>7*1024*1024){toast('ファイルが大きすぎて送れません');return}
+      var fd=new FormData();
+      fd.append('payload_json',JSON.stringify({content:'💾 宿題ノートのバックアップ（'+md(S.today)+'）\n復活するときは、このファイルを「バックアップを読みこむ」で選んでね。',username:'宿題ノート'}));
+      fd.append('files[0]',blob,'shukudai-note-'+S.today+'.txt');
+      return fetch(S.settings.webhookUrl,{method:'POST',body:fd}).then(function(res){
+        if(!res.ok)throw new Error('webhook '+res.status);
+        toast('バックアップを Discord に送りました');
+      });
+    }).catch(function(){toast('送れませんでした。URL を確認してね')});
   },
   restore:function(){if(!arm('restore'))return;$('#fileRestore').click()},
   copySummary:function(){copyText(summaryText(S.date))},
@@ -938,7 +945,11 @@ document.addEventListener('pointerdown',function(){if(isParent())S.unlockedUntil
 $('#fileRestore').addEventListener('change',function(e){
   var f=e.target.files&&e.target.files[0];e.target.value='';if(!f||!S.db)return;
   var r=new FileReader();
-  r.onload=function(){try{S.db._import(JSON.parse(r.result)).then(function(){toast('バックアップを読みこみました')}).catch(function(){toast('読みこめませんでした')})}catch(x){toast('このファイルは読みこめません')}};
+  r.onload=function(){try{
+    var o=JSON.parse(r.result);
+    /* この端末の Webhook URL と暗証番号はそのまま残す */
+    (o.docs||[]).forEach(function(x){if(x.p==='config/settings'){x.d=Object.assign({},x.d);if(S.settings.webhookUrl)x.d.webhookUrl=S.settings.webhookUrl;if(S.settings.pinHash)x.d.pinHash=S.settings.pinHash}});
+    S.db._import(o).then(function(){toast('バックアップを読みこみました')}).catch(function(){toast('読みこめませんでした')})}catch(x){toast('このファイルは読みこめません')}};
   r.readAsText(f);
 });
 setInterval(function(){if(S.unlockedUntil&&!isParent()){S.unlockedUntil=0;renderAll()}},5000);
