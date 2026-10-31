@@ -267,7 +267,7 @@ textarea.cp{width:100%;min-height:140px;border-radius:12px;border:1.5px solid va
 'use strict';
 var $=function(s){return document.querySelector(s)};
 var esc=function(s){return String(s==null?'':s).replace(/[&<>"']/g,function(c){return {'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]})};
-var DEFAULT_CATALOG=[{id:'kumon_en',t:'公文英語'},{id:'calc',t:'計算'},{id:'kanji',t:'漢字'},{id:'nichinoken',t:'日能研算数'},{id:'school_hw',t:'学校の宿題'}];
+var DEFAULT_CATALOG=[{id:'kumon_en',t:'公文英語'},{id:'calc',t:'計算'},{id:'kanji',t:'漢字'},{id:'nichinoken_1h',t:'日能研算数-1時間'},{id:'nichinoken_2h',t:'日能研算数-2時間'},{id:'nichinoken_night',t:'日能研算数-夜'},{id:'school_hw',t:'学校の宿題'}];
 var WD=['日','月','火','水','木','金','土'];
 var pad=function(n){return String(n).padStart(2,'0')};
 var keyOf=function(d){return d.getFullYear()+'-'+pad(d.getMonth()+1)+'-'+pad(d.getDate())};
@@ -388,6 +388,25 @@ function notify(text,blobs){
   if(blobs&&blobs.length)pendingBlobs[id]=blobs;
   S.db.doc('outbox/'+id).set({text:text,at:Date.now(),sent:false}).then(trySend).catch(function(){});
 }
+function migrateNichinoken(){
+  var OLD='nichinoken',NEW=[{id:'nichinoken_1h',t:'日能研算数-1時間'},{id:'nichinoken_2h',t:'日能研算数-2時間'},{id:'nichinoken_night',t:'日能研算数-夜'}];
+  var cat=S.settings.catalog;
+  if(Array.isArray(cat)&&cat.some(function(k){return k.id===OLD})){
+    var nc=[];cat.forEach(function(k){if(k.id===OLD)NEW.forEach(function(n){nc.push({id:n.id,t:n.t})});else nc.push(k)});
+    saveSettings({catalog:nc});
+  }
+  var days=S.plan&&S.plan.days;
+  if(days&&Object.keys(days).some(function(w){return Array.isArray(days[w])&&days[w].indexOf(OLD)>=0})){
+    var nd=clone(days);
+    Object.keys(nd).forEach(function(w){if(!Array.isArray(nd[w]))return;var o=[];nd[w].forEach(function(id){if(id===OLD)NEW.forEach(function(n){o.push(n.id)});else o.push(id)});nd[w]=o});
+    savePlan(nd);
+  }
+  Object.keys(S.days).forEach(function(k){
+    var d=S.days[k];if(k<S.today||!d||!d.items)return;
+    if(!d.items.some(function(i){return i.id===OLD&&!i.ok}))return;
+    saveDay(k,function(x){var o=[];x.items.forEach(function(i){if(i.id===OLD&&!i.ok)NEW.forEach(function(n){o.push({id:n.id,t:n.t,ok:false})});else o.push(i)});x.items=o});
+  });
+}
 function dailyOpen(){
   if(!webhookOk(S.settings.webhookUrl)||S.settings.openNotify===false)return;
   var t=S.today;if(S.settings.lastOpen===t)return;
@@ -442,14 +461,14 @@ function renderTop(){
   var parent=isParent();
   $('#top').innerHTML='<div class="top">'+
     '<div class="datenav"><button class="sq" data-act="prevDay" aria-label="前の日">‹</button>'+
-    '<div class="date"><b>'+(d.getMonth()+1)+'月'+d.getDate()+'日</b><span>'+WD[d.getDay()]+'ようび'+(isToday?'・今日':'')+'</span></div>'+
+    '<div class="date"><b>'+(d.getMonth()+1)+'月'+d.getDate()+'日</b><span>'+WD[d.getDay()]+'曜日'+(isToday?'・今日':'')+'</span></div>'+
     '<button class="sq" data-act="nextDay" aria-label="次の日">›</button></div>'+
     (isToday?'':'<button class="pill" data-act="goToday">今日へ</button>')+
     (parent?'<button class="pill on" data-act="lock">'+IC.lockS+'親モード</button>':'')+
   '</div>';
 }
 function renderTabs(){
-  var t=[['today','今日',IC.home],['manage','宿題管理',IC.list],['play','遊び管理',IC.timer],['history','記録',IC.cal],['parent','おや',IC.lock]];
+  var t=[['today','今日',IC.home],['manage','宿題管理',IC.list],['play','遊び管理',IC.timer],['history','記録',IC.cal],['parent','親',IC.lock]];
   $('#tabs').innerHTML='<div>'+t.map(function(x){return '<button data-act="tab" data-v="'+x[0]+'"'+(S.tab===x[0]?' aria-current="page"':'')+'>'+x[2]+x[1]+'</button>'}).join('')+'</div>';
 }
 function renderBanner(){
@@ -478,7 +497,7 @@ function viewToday(){
       '<span class="mark">'+IC.check+'</span>'+
       '<span class="t">'+esc(it.t)+'</span>'+
       '<span class="meta">'+(n?'<span class="cam">'+IC.cam+n+'</span>':'')+(it.ok?'<span style="color:var(--ok)">OK</span>':'')+IC.chev+'</span></button>';
-  }).join(''):'<div class="empty">この日の宿題はまだ入っていません。<br>「おや」タブで追加できます。</div>';
+  }).join(''):'<div class="empty">この日の宿題はまだ入っていません。<br>「宿題管理」タブで追加できます。</div>';
 
   ensureTimes();
   var dur=S.pEnd-S.pStart,startMs=parse(S.date).getTime()+S.pStart*60000;
@@ -567,7 +586,7 @@ function viewManage(){
     '<h2>宿題の種類</h2>'+
     '<div class="sec"><p>ここにある宿題が、上の選択肢になります。</p>'+cats+
     '<div class="field"><input type="text" id="catT" data-keep data-enter="catAdd" placeholder="例：英検の問題集" maxlength="30" aria-label="新しい宿題の名前"><button class="btn" data-act="catAdd">追加</button></div>'+
-    '<div class="stack"><button class="btn sub" data-act="catReset">'+(isArmed('cr')?'もう一度おすと もどります':'最初の5つにもどす')+'</button></div></div>';
+    '<div class="stack"><button class="btn sub" data-act="catReset">'+(isArmed('cr')?'もう一度おすと もどります':'最初のリストにもどす')+'</button></div></div>';
 }
 
 function lrow(label,sub,val,act,v,cur){
@@ -853,7 +872,7 @@ var A={
     if(!arm('cd'+e.id))return;
     requireParent(function(){saveSettings({catalog:catalog().filter(function(k){return k.id!==e.id})})});
   },
-  catReset:function(){if(!arm('cr'))return;requireParent(function(){saveSettings({catalog:DEFAULT_CATALOG}).then(function(){toast('最初の5つにもどしました')})})},
+  catReset:function(){if(!arm('cr'))return;requireParent(function(){saveSettings({catalog:DEFAULT_CATALOG}).then(function(){toast('最初のリストにもどしました')})})},
   limDefAdj:function(e){requireParent(function(){saveSettings({limitDefault:Math.max(0,Math.min(480,limitDefault()+Number(e.d)))})})},
   limWdAdj:function(e){
     requireParent(function(){
@@ -1055,7 +1074,7 @@ async function boot(){
   db.collection('plays').orderBy('date','desc').limit(300).onSnapshot(function(q){S.plays=q.docs.map(function(d){var o=d.data();o.id=d.id;return o});ready('plays');renderAll()},onErr);
   db.collection('outbox').where('sent','==',false).limit(60).onSnapshot(function(q){S.outbox=q.docs.map(function(d){var o=d.data();o.id=d.id;return o});renderAll()},function(){});
   subPhotos();
-  whenLoaded(function(){dailyOpen();trySend()});
+  whenLoaded(function(){migrateNichinoken();dailyOpen();trySend()});
 }
 boot();
 })();
