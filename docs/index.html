@@ -120,6 +120,26 @@ h2{font-size:15px;font-weight:700;letter-spacing:.06em;color:var(--muted);margin
 .log .li .sp{flex:1}
 .badge{font-size:11px;font-weight:900;padding:1px 8px;border-radius:999px;background:var(--warn-bg);color:var(--warn)}
 .link{border:0;background:none;color:var(--muted);text-decoration:underline;font-size:13px;font-weight:700;min-height:36px}
+.sect{margin-bottom:14px}
+.ch{display:flex;align-items:baseline;gap:8px;flex-wrap:wrap;margin-bottom:12px}
+.ch b{font-size:19px;font-weight:900}
+.ch span{font-size:12px;font-weight:700;color:var(--muted)}
+.ch .badge{margin-left:auto}
+.badge.okb{background:var(--ok-bg);color:var(--ok)}
+.kv{display:flex;align-items:baseline;gap:8px;flex-wrap:wrap;margin-bottom:14px}
+.kv>span:first-child{font-weight:700;font-size:14px;color:var(--muted)}
+.kv b{font-family:var(--num);font-size:30px;font-weight:600}
+.kv b small{font-size:16px;color:var(--muted);margin-left:2px}
+.apr{display:flex;align-items:center;gap:8px;font-weight:900;color:var(--ok);min-height:44px}
+.apr .link{margin-left:auto}
+.trow{display:flex;align-items:center;gap:6px;margin:10px 0}
+.trow .tl{width:42px;flex:none;font-weight:900;font-size:14px;color:var(--muted)}
+.trow select{flex:1;min-width:0;min-height:52px;border-radius:12px;border:1.5px solid var(--line);background:var(--bg);color:var(--ink);font-family:var(--num);font-size:26px;font-weight:600;text-align:center;text-align-last:center}
+.trow .colon{font-family:var(--num);font-size:26px;font-weight:600}
+.trow .mini{min-height:52px;min-width:44px;padding:0 6px;flex:none}
+.dur{text-align:center;font-weight:900;font-size:15px;margin:4px 0 14px}
+.dur b{font-size:34px;font-weight:600}
+.dur.bad{color:var(--bad)}
 .totals{display:flex;gap:10px;margin-top:6px}
 .totals div{flex:1;background:var(--bg);border-radius:12px;padding:8px 12px;font-size:13px;font-weight:700;color:var(--muted)}
 .totals b{display:block;font-family:var(--num);font-size:24px;color:var(--ink);font-weight:600}
@@ -256,7 +276,7 @@ var md=function(k){var d=parse(k);return (d.getMonth()+1)+'/'+d.getDate()+'('+WD
 var S={db:null,tab:'today',today:keyOf(new Date()),date:keyOf(new Date()),
   settings:{},limits:{},plan:{days:{}},days:{},plays:[],photos:[],outbox:[],
   loaded:{},err:null,unlockedUntil:0,planDay:new Date().getDay(),
-  playKind:'game',playMin:15,sheet:null,pin:null,viewer:null,armed:null,photoTarget:null,busy:false,slow:false};
+  pStart:null,pEnd:null,sheet:null,pin:null,viewer:null,armed:null,photoTarget:null,busy:false,slow:false};
 try{var t0=localStorage.getItem('hw_tab');if(t0==='today'||t0==='manage'||t0==='play'||t0==='history'||t0==='parent')S.tab=t0}catch(e){}
 
 /* ---------- derived ---------- */
@@ -281,10 +301,28 @@ function calc(date){
   var allowance=(d&&typeof d.preMin==='number')?d.preMin:(typeof S.settings.preMin==='number'?S.settings.preMin:30);
   var preUsed=sum(plays.filter(function(p){return p.pre}));
   var o={items:items,total:items.length,ok:ok,all:ok===items.length,plays:plays,allowance:allowance,preUsed:preUsed,
-    remain:allowance-preUsed,game:sum(plays.filter(function(p){return p.kind==='game'})),tv:sum(plays.filter(function(p){return p.kind==='tv'})),
-    hasDoc:!!d};
-  o.limit=limitFor(date);o.playTotal=o.game+o.tv;o.dayLeft=o.limit-o.playTotal;
+    remain:allowance-preUsed,appr:(d&&d.preAppr)||null,hasDoc:!!d};
+  o.limit=limitFor(date);o.playTotal=sum(plays);o.dayLeft=o.limit-o.playTotal;
   return o;
+}
+var pad=function(n){return (n<10?'0':'')+n};
+var tstr=function(m){return pad(Math.floor(m/60))+':'+pad(m%60)};
+var tmin=function(t){var a=/^(\d+):(\d+)$/.exec(t||'');return a?Number(a[1])*60+Number(a[2]):null};
+function nowMin5(){var d=new Date();return Math.floor((d.getHours()*60+d.getMinutes())/5)*5}
+function ensureTimes(){if(S.pEnd==null||S.pStart==null){S.pEnd=nowMin5();S.pStart=Math.max(0,S.pEnd-30)}}
+/* 宿題が全部OKになる前に始めた遊び = 先取り */
+function lastOkAt(c){return c.items.reduce(function(t,i){return Math.max(t,i.okAt||0)},0)}
+function isPre(c,startMs){if(c.total===0)return false;if(!c.all)return true;return lastOkAt(c)>startMs}
+function timeRow(label,key,m){
+  var h=Math.floor(m/60),mi=m%60,ho='',mo='',i,j;
+  for(i=0;i<24;i++)ho+='<option value="'+i+'"'+(i===h?' selected':'')+'>'+pad(i)+'</option>';
+  for(j=0;j<60;j+=5)mo+='<option value="'+j+'"'+(j===mi?' selected':'')+'>'+pad(j)+'</option>';
+  return '<div class="trow"><span class="tl">'+label+'</span>'+
+    '<button class="mini" data-act="tAdj" data-v="'+key+'" data-d="-5" aria-label="5分まえ">−5</button>'+
+    '<select data-chg="tH" data-v="'+key+'" aria-label="'+label+'の時">'+ho+'</select><span class="colon">:</span>'+
+    '<select data-chg="tM" data-v="'+key+'" aria-label="'+label+'の分">'+mo+'</select>'+
+    '<button class="mini" data-act="tAdj" data-v="'+key+'" data-d="5" aria-label="5分あと">＋5</button>'+
+    (key==='pEnd'?'<button class="mini" data-act="tNow">いま</button>':'')+'</div>';
 }
 function hashPin(p){var h=5381,s='hw|'+p;for(var i=0;i<s.length;i++)h=((h<<5)+h+s.charCodeAt(i))>>>0;return String(h)}
 
@@ -427,7 +465,7 @@ function viewToday(){
     st='<div class="status ok"><div class="big num">'+(c.total===0?'OK':c.ok+'<small>/'+c.total+'</small>')+'</div><div class="msg"><b>'+lead+(c.dayLeft>0?' ゲーム・テレビ していいよ':' 今日の遊びは おしまい')+'</b><span>'+dm+'</span></div></div>';
   }else{
     var left=c.total-c.ok;
-    st='<div class="status warn'+(isToday?'':' past')+'"><div class="big num">'+c.ok+'<small>/'+c.total+'</small></div><div class="msg"><b>宿題 あと'+left+'こ</b><span>'+(preLeft>0?'終わるまでは先取り遊び あと'+preLeft+'分':'先取り遊びの時間は つかいきったよ')+'</span></div></div>';
+    st='<div class="status warn'+(isToday?'':' past')+'"><div class="big num">'+c.ok+'<small>/'+c.total+'</small></div><div class="msg"><b>宿題 あと'+left+'こ</b><span>'+(!c.appr?'先取り遊びは 親の承認がいるよ':preLeft>0?'終わるまでは先取り遊び あと'+preLeft+'分':'先取り遊びの時間は つかいきったよ')+'</span></div></div>';
   }
   var rows=c.items.length?c.items.map(function(it){
     var n=S.photos.filter(function(p){return p.itemId===it.id}).length;
@@ -437,37 +475,46 @@ function viewToday(){
       '<span class="meta">'+(n?'<span class="cam">'+IC.cam+n+'</span>':'')+(it.ok?'<span style="color:var(--ok)">OK</span>':'')+IC.chev+'</span></button>';
   }).join(''):'<div class="empty">この日の宿題はまだ入っていません。<br>「おや」タブで追加できます。</div>';
 
-  var dpct=c.limit>0?Math.max(0,Math.min(100,c.dayLeft/c.limit*100)):0;
-  var daily='<div class="meter"><span class="lab">きょうの遊び のこり</span><span class="v num'+(c.dayLeft<0?' neg':'')+'">'+Math.max(c.dayLeft,0)+'<small style="font-size:18px">分</small></span>'+
-    (c.dayLeft<0?'<span class="badge" style="background:var(--bad-bg);color:var(--bad)">'+(-c.dayLeft)+'分オーバー</span>':'')+'</div>'+
-    '<div class="bar'+(c.dayLeft<0?' over':'')+'"><i style="width:'+dpct+'%"></i></div>'+
-    '<div class="note" style="margin-top:-6px;margin-bottom:14px">1日の上限 '+c.limit+'分・きょうの合計 '+c.playTotal+'分</div>';
+  ensureTimes();
+  var dur=S.pEnd-S.pStart,startMs=parse(S.date).getTime()+S.pStart*60000;
+  var preForm=dur>0&&isPre(c,startMs),needAppr=preForm&&!c.appr;
+  var over=function(n){return '<span class="badge" style="background:var(--bad-bg);color:var(--bad)">'+n+'分オーバー</span>'};
+  var big=function(n,neg){return '<span class="v num'+(neg?' neg':'')+'">'+Math.max(n,0)+'<small style="font-size:18px">分</small></span>'};
+
   var pre='';
-  var showPre=!c.all||c.preUsed>0;
-  if(showPre){
-    var pct=c.allowance>0?Math.max(0,Math.min(100,preLeft/c.allowance*100)):0;
-    pre='<div class="meter"><span class="lab">先取り遊び のこり</span><span class="v num'+(preLeft<0?' neg':'')+'">'+Math.max(preLeft,0)+'<small style="font-size:18px">分</small></span>'+
-      (c.remain<0?'<span class="badge" style="background:var(--bad-bg);color:var(--bad)">'+(-c.remain)+'分オーバー</span>':'')+
-      (parent?'<span class="adj"><button class="mini" data-act="preAdj" data-d="-5">−5分</button><button class="mini" data-act="preAdj" data-d="5">＋5分</button></span>':'')+'</div>'+
-      '<div class="bar'+(preLeft<0?' over':'')+'"><i style="width:'+pct+'%"></i></div>'+
-      '<div class="note" style="margin-top:-6px;margin-bottom:14px">きょうの先取り時間 '+c.allowance+'分'+(c.all?'（宿題はぜんぶ終わり）':'')+'</div>';
+  if(!c.all||c.preUsed>0||c.appr||preForm){
+    var pct=c.allowance>0?Math.max(0,Math.min(100,c.remain/c.allowance*100)):0;
+    pre='<div class="card sect"><div class="ch"><b>先取り</b><span>宿題が終わる前の遊び</span>'+(c.appr?'<span class="badge okb">承認ずみ '+hhmm(c.appr.at)+'</span>':'<span class="badge">承認まち</span>')+'</div>'+
+      '<div class="kv"><span>今日の先取り時間</span><b class="num">'+c.allowance+'<small>分</small></b>'+
+      '<span class="adj"><button class="mini" data-act="preAdj" data-d="-5">−5分</button><button class="mini" data-act="preAdj" data-d="5">＋5分</button></span></div>'+
+      (c.appr?'<div class="apr">'+IC.check+'<span>親が承認しました</span><button class="link" data-act="preUnappr">承認をとりけす</button></div>'
+             :'<button class="btn ok" data-act="preApprove">'+(parent?'':IC.lockS)+'親の承認</button>')+
+      '<div class="meter" style="margin-top:16px"><span class="lab">今日の先取り のこり</span>'+big(c.remain,c.remain<0)+(c.remain<0?over(-c.remain):'')+'</div>'+
+      '<div class="bar'+(c.remain<0?' over':'')+'"><i style="width:'+pct+'%"></i></div>'+
+      (c.remain>c.dayLeft&&c.remain>0?'<div class="note" style="margin-top:-6px">総時間のこりが '+Math.max(c.dayLeft,0)+'分なので、そこまでだよ</div>':'')+'</div>';
   }
-  var quick=[10,15,30,45,60].map(function(m){return '<button class="chip" data-act="playQuick" data-m="'+m+'" aria-pressed="'+(S.playMin===m)+'">'+m+'分</button>'}).join('');
+
+  var dpct=c.limit>0?Math.max(0,Math.min(100,c.dayLeft/c.limit*100)):0;
+  var total='<div class="card sect"><div class="ch"><b>総時間</b><span>ゲーム・テレビ ぜんぶの合計</span></div>'+
+    '<div class="meter"><span class="lab">今日の総時間 のこり</span>'+big(c.dayLeft,c.dayLeft<0)+(c.dayLeft<0?over(-c.dayLeft):'')+'</div>'+
+    '<div class="bar'+(c.dayLeft<0?' over':'')+'"><i style="width:'+dpct+'%"></i></div>'+
+    '<div class="note" style="margin-top:-6px">1日の上限 '+c.limit+'分・きょうの合計 '+c.playTotal+'分'+(c.preUsed?'（うち先取り '+c.preUsed+'分）':'')+'</div></div>';
+
+  var quick=[15,30,45,60].map(function(m){return '<button class="chip" data-act="tAgo" data-m="'+m+'" aria-pressed="'+(dur===m)+'">'+m+'分前</button>'}).join('');
   var log=c.plays.length?'<div class="log">'+c.plays.map(function(p){
     var recent=Date.now()-p.at<120000;
-    return '<div class="li"><span class="tm">'+hhmm(p.at)+'</span><span>'+(p.kind==='tv'?'テレビ':'ゲーム')+'</span><span class="num">'+p.min+'分</span>'+
+    return '<div class="li"><span class="tm" style="width:auto">'+(p.start?p.start+'〜'+p.end:hhmm(p.at))+'</span><span class="num">'+p.min+'分</span>'+
       (p.pre?'<span class="badge">先取り</span>':'')+'<span class="sp"></span>'+
       ((recent||parent)?'<button class="link" data-act="playDel" data-id="'+esc(p.id)+'">'+(isArmed('pd'+p.id)?'もう一度おす':'とりけす')+'</button>':'')+'</div>';
   }).join('')+'</div>':'';
-  var play='<div class="card">'+daily+pre+
-    '<div class="totals"><div>ゲーム<b>'+c.game+'<small style="font-size:13px;color:var(--muted)">分</small></b></div><div>テレビ<b>'+c.tv+'<small style="font-size:13px;color:var(--muted)">分</small></b></div></div>'+
-    '<div class="seg" role="group" aria-label="なにをした？"><button data-act="playKind" data-v="game" aria-pressed="'+(S.playKind==='game')+'">ゲーム</button><button data-act="playKind" data-v="tv" aria-pressed="'+(S.playKind==='tv')+'">テレビ</button></div>'+
-    '<div class="step"><button class="sq" data-act="playAdj" data-d="-5" aria-label="5分へらす">−</button><div class="val">'+S.playMin+'<small>分</small></div><button class="sq" data-act="playAdj" data-d="5" aria-label="5分ふやす">＋</button></div>'+
-    '<div class="chips">'+quick+'</div>'+
-    '<button class="btn" data-act="playSubmit"'+(S.busy?' disabled':'')+'>やった時間を申告する</button>'+
-    (c.all||c.total===0?'':'<div class="note" style="margin-top:10px;text-align:center">宿題が終わる前の遊びは「先取り」になるよ</div>')+
+  var form='<div class="card sect"><div class="ch"><b>遊んだ時間を申告</b><span>ゲームでもテレビでもOK</span></div>'+
+    timeRow('はじめ','pStart',S.pStart)+timeRow('おわり','pEnd',S.pEnd)+
+    '<div class="chips"><span class="note" style="align-self:center">はじめ＝おわりの</span>'+quick+'</div>'+
+    '<div class="dur'+(dur>0?'':' bad')+'">'+(dur>0?'<b class="num">'+dur+'</b>分 あそんだ':'おわりを はじめより あとにしてね')+'</div>'+
+    '<button class="btn" data-act="playSubmit"'+((S.busy||dur<=0||needAppr)?' disabled':'')+'>この時間を申告する</button>'+
+    (needAppr?'<div class="note" style="margin-top:10px;text-align:center">先取りになるので、先に「親の承認」を押してもらってね</div>':'')+
     log+'</div>';
-  return st+'<h2>宿題</h2><div class="list">'+rows+'</div><h2>ゲーム・テレビ</h2>'+play;
+  return st+'<h2>宿題</h2><div class="list">'+rows+'</div><h2>ゲーム・テレビ</h2>'+pre+total+form;
 }
 
 /* ---------- render: history ---------- */
@@ -479,7 +526,7 @@ function viewHistory(){
     var recorded=c.hasDoc||c.plays.length;
     rows+='<button class="hrow" data-act="openDay" data-d="'+k+'"><div class="hd'+(d.getDay()===0?' sun':'')+'"><b>'+(d.getMonth()+1)+'/'+d.getDate()+'</b><span>'+WD[d.getDay()]+(i===0?'・きょう':'')+'</span></div>'+
       '<div class="dots" aria-label="OK '+c.ok+' / '+c.total+'">'+dots+'</div>'+
-      '<div class="hsum">'+(recorded?(c.total?'OK <b class="num">'+c.ok+'/'+c.total+'</b>':'')+'<br>遊び <b class="num">'+c.playTotal+'</b>/'+c.limit+'分（ゲーム'+c.game+'・テレビ'+c.tv+(c.preUsed?'・先取り'+c.preUsed:'')+'）':'きろくなし')+'</div>'+IC.chev+'</button>';
+      '<div class="hsum">'+(recorded?(c.total?'OK <b class="num">'+c.ok+'/'+c.total+'</b>':'')+'<br>遊び <b class="num">'+c.playTotal+'</b>/'+c.limit+'分'+(c.preUsed?'（先取り'+c.preUsed+'分）':''):'きろくなし')+'</div>'+IC.chev+'</button>';
   }
   return '<h2>ここ2週間のきろく</h2><div class="list">'+rows+'</div>';
 }
@@ -550,14 +597,10 @@ function viewPlay(){
 function viewParent(){
   if(!isParent()){
     return '<div class="card" style="margin-top:16px;text-align:center"><h3 style="margin:0 0 6px;font-size:19px">親用のページです</h3>'+
-      '<p class="note" style="margin:0 0 16px">先取り時間の設定、Discord用の通知文、暗証番号はここにあります。宿題リストは「宿題管理」タブです。</p>'+
+      '<p class="note" style="margin:0 0 16px">暗証番号などの設定はここにあります。宿題リストは「宿題管理」タブ、遊びの上限は「遊び管理」タブです。</p>'+
       '<button class="btn" data-act="unlock">暗証番号を入れる</button></div>';
   }
-  var c=calc(S.date);
   var unsent=S.outbox.slice().sort(function(a,b){return a.at-b.at});
-  var ob=unsent.length?unsent.map(function(o){return '<div class="ob">'+esc(o.text)+'</div>'}).join('')+'<div class="stack"><button class="btn" data-act="copyOutbox">'+unsent.length+'件をまとめてコピー</button></div>':'<div class="note">送っていない通知はありません</div>';
-  var du=S.settings.discordUrl||'';
-  var dl=du&&/^https:\/\//.test(du)?'<a class="btn sub" style="text-decoration:none;margin-top:10px" href="'+esc(du)+'" target="_blank" rel="noopener">Discordのチャンネルを開く</a>':'';
   var wh=webhookOk(S.settings.webhookUrl);
   var obList=unsent.length?'<p class="note" style="margin:16px 0 4px">まだ届いていない通知 '+unsent.length+'件</p>'+unsent.slice(0,5).map(function(o){return '<div class="ob">'+esc(o.text)+'</div>'}).join('')+'<div class="two"><button class="btn" data-act="retrySend">もう一度送る</button><button class="btn sub" data-act="copyOutbox">コピーする</button></div>':'';
   return '<div class="sec" style="margin-top:20px"><h3>Discord への通知</h3><p>申告・写真のアップ・全部OKのとき、すぐ Discord に届きます。写真もいっしょに届きます。</p>'+
@@ -567,6 +610,7 @@ function viewParent(){
     '<button class="btn sub" data-act="sendSummary">'+md(S.date)+' のまとめを送る</button>'+
     '<button class="btn sub" data-act="toggleOpenNotify">毎日の最初の使用時に通知：'+(S.settings.openNotify===false?'オフ':'オン')+'</button></div>'+obList+'</div>'+
   '<div class="sec"><h3>そのほか</h3><p>記録はこの端末のブラウザの中に入っています。ときどきバックアップを保存してね。</p>'+
+
     '<div class="stack" style="margin-top:8px"><button class="btn sub" data-act="changePin">暗証番号を変える</button>'+
     '<button class="btn sub" data-act="cleanPhotos">'+(isArmed('clean')?'もう一度おすと 30日より前の写真を消します':'30日より前の写真を消す')+'</button>'+
     '<button class="btn sub" data-act="backup">バックアップを保存</button>'+
@@ -676,8 +720,8 @@ function summaryText(date){
   if(!c.total)l.push('宿題なし');
   c.items.forEach(function(i){l.push((i.ok?'✅ ':'⬜ ')+i.t)});
   if(c.total)l.push('OK '+c.ok+'/'+c.total+(ph?'・写真 '+ph+'枚':''));
-  l.push('先取り遊び '+c.preUsed+'/'+c.allowance+'分'+(c.remain<0?'（'+(-c.remain)+'分オーバー）':''));
-  l.push('🎮 ゲーム '+c.game+'分 / 📺 テレビ '+c.tv+'分');
+  l.push('先取り遊び '+c.preUsed+'/'+c.allowance+'分'+(c.appr?'（承認ずみ）':'')+(c.remain<0?'（'+(-c.remain)+'分オーバー）':''));
+  c.plays.forEach(function(p){l.push('🎮📺 '+(p.start?p.start+'〜'+p.end:hhmm(p.at))+' '+p.min+'分'+(p.pre?'（先取り）':''))});
   l.push('遊び合計 '+c.playTotal+'/'+c.limit+'分'+(c.dayLeft<0?'（'+(-c.dayLeft)+'分オーバー⚠️）':''));
   return l.join('\n');
 }
@@ -714,17 +758,43 @@ var A={
     });
   },
   unokItem:function(e){requireParent(function(){saveDay(S.date,function(d){var it=d.items.filter(function(i){return i.id===e.id})[0];if(it){it.ok=false;delete it.okAt}}).then(function(){renderAll()})})},
-  playKind:function(e){S.playKind=e.v;renderMain()},
-  playAdj:function(e){S.playMin=Math.max(5,Math.min(240,S.playMin+Number(e.d)));renderMain()},
-  playQuick:function(e){S.playMin=Number(e.m);renderMain()},
+  tH:function(e){var k=e.v==='pEnd'?'pEnd':'pStart';S[k]=Number(e.val)*60+S[k]%60;renderMain()},
+  tM:function(e){var k=e.v==='pEnd'?'pEnd':'pStart';S[k]=Math.floor(S[k]/60)*60+Number(e.val);renderMain()},
+  tAdj:function(e){var k=e.v==='pEnd'?'pEnd':'pStart';S[k]=Math.max(0,Math.min(1435,S[k]+Number(e.d)));renderMain()},
+  tNow:function(){S.pEnd=nowMin5();renderMain()},
+  tAgo:function(e){S.pStart=Math.max(0,S.pEnd-Number(e.m));renderMain()},
+  preApprove:function(){
+    requireParent(function(){
+      var date=S.date;
+      saveDay(date,function(d){d.preAppr={at:Date.now()}}).then(function(){
+        var c=calc(date);
+        toast('先取りを承認しました');
+        notify('✅ 親が先取り遊びを承認しました（'+md(date)+'）。\n今日の先取り時間 '+c.allowance+'分・宿題 '+c.ok+'/'+c.total+'・総時間の上限 '+c.limit+'分');
+      });
+    });
+  },
+  preUnappr:function(){
+    requireParent(function(){
+      var date=S.date;
+      saveDay(date,function(d){delete d.preAppr}).then(function(){toast('承認をとりけしました');notify('↩️ 先取り遊びの承認をとりけしました（'+md(date)+'）。')});
+    });
+  },
   playSubmit:function(){
-    if(S.busy)return;S.busy=true;renderMain();
-    var date=S.date,c=calc(date),pre=!c.all&&c.total>0,kind=S.playKind,min=S.playMin;
-    S.db.doc('plays/'+uid()).set({date:date,kind:kind,min:min,pre:pre,at:Date.now()}).then(function(){
-      S.busy=false;toast('申告しました');
-      var rem=c.allowance-(c.preUsed+(pre?min:0));
-      var tot=c.playTotal+min,dl=c.limit-tot;
-      notify((kind==='tv'?'📺 テレビ ':'🎮 ゲーム ')+min+'分 を申告（'+md(date)+'）。'+(pre?'先取り遊び：のこり'+Math.max(Math.min(rem,dl),0)+'分'+(rem<0?'（'+(-rem)+'分オーバー⚠️）':''):'宿題はぜんぶOK済み。')+' 今日の遊び合計 '+tot+'分/上限'+c.limit+'分'+(dl<0?'（'+(-dl)+'分オーバー⚠️）':'')+'（ゲーム'+(c.game+(kind==='game'?min:0))+'分・テレビ'+(c.tv+(kind==='tv'?min:0))+'分）');
+    if(S.busy)return;
+    ensureTimes();
+    var date=S.date,c=calc(date),st=S.pStart,en=S.pEnd,min=en-st;
+    if(min<=0){toast('おわりの時間を はじめより あとにしてね');return}
+    var clash=c.plays.some(function(p){var a=tmin(p.start),b=tmin(p.end);return a!=null&&b!=null&&st<b&&en>a});
+    if(clash){toast('その時間は もう申告ずみだよ');return}
+    var pre=isPre(c,parse(date).getTime()+st*60000);
+    if(pre&&!c.appr){toast('先取りは 親の承認がいるよ');return}
+    S.busy=true;renderMain();
+    S.db.doc('plays/'+uid()).set({date:date,start:tstr(st),end:tstr(en),min:min,pre:pre,at:Date.now()}).then(function(){
+      S.busy=false;S.pStart=null;S.pEnd=null;toast('申告しました');
+      var rem=c.allowance-(c.preUsed+(pre?min:0)),tot=c.playTotal+min,dl=c.limit-tot;
+      notify('🎮📺 遊びを申告（'+md(date)+'）\n'+tstr(st)+'〜'+tstr(en)+'（'+min+'分）'+(pre?'・先取り':'')+'\n'+
+        (pre?'先取り：今日の'+c.allowance+'分のうち のこり'+Math.max(rem,0)+'分'+(rem<0?'（'+(-rem)+'分オーバー⚠️）':''):'宿題はぜんぶOK済み')+'\n'+
+        '総時間：'+tot+'分 / 上限'+c.limit+'分（'+(dl>=0?'のこり'+dl+'分':(-dl)+'分オーバー⚠️')+'）');
       renderMain();
     }).catch(function(){S.busy=false;toast('申告できませんでした');renderMain()});
   },
@@ -833,11 +903,6 @@ var A={
     copyText(list.map(function(o){return o.text}).join('\n\n'));
     list.forEach(function(o){S.db.doc('outbox/'+o.id).update({sent:true,sentAt:Date.now()}).catch(function(){})});
   },
-  saveDiscord:function(){
-    var v=($('#discordUrl').value||'').trim();
-    if(v&&!/^https:\/\//.test(v)){toast('https:// から始まるURLを入れてください');return}
-    saveSettings({discordUrl:v}).then(function(){toast('保存しました')});
-  },
   cleanPhotos:function(){
     if(!arm('clean'))return;
     var cut=shift(S.today,-30);
@@ -857,6 +922,10 @@ document.addEventListener('click',function(ev){
   if(!fn)return;
   var d=el.dataset;
   fn({id:d.id,v:d.v,d:d.d,m:d.m});
+});
+document.addEventListener('change',function(ev){
+  var el=ev.target.closest&&ev.target.closest('[data-chg]');if(!el)return;
+  var fn=A[el.getAttribute('data-chg')];if(fn)fn({v:el.dataset.v,val:el.value});
 });
 document.addEventListener('keydown',function(ev){
   if(ev.key==='Enter'&&ev.target.dataset&&ev.target.dataset.enter&&!ev.isComposing){ev.preventDefault();A[ev.target.dataset.enter]()}
